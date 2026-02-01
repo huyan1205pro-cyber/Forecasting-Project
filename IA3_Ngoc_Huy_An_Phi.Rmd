@@ -1,6 +1,6 @@
 ---
-title: "ETF3231/5231 Individual Assignment 3"
-author: "Ngoc Huy An Phi 34160213"
+title: "Forecasting Project"
+author: "Theodore Phi"
 output: pdf_document
 ---
 
