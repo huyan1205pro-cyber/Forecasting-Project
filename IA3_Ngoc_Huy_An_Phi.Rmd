@@ -1,0 +1,191 @@
+---
+title: "ETF3231/5231 Individual Assignment 3"
+author: "Ngoc Huy An Phi 34160213"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	eval = TRUE,
+	echo = TRUE,
+	error = TRUE,
+	cache = TRUE
+)
+library(fpp3)
+library(readr)
+meta <- read_csv("IA_Data.csv", col_names = TRUE, n_max = 3)
+dat <- read_csv("IA_Data.csv", 
+                # use column names from the metadata
+                col_names = colnames(meta),
+                # skip 4 rows as we also skip column names, specified above
+                skip = 4)
+
+# Make sure you select the column with your student ID
+my_series <- dat %>% 
+  # feel free to rename your series appropriately
+  rename(Month = "Student ID", y ="34160213") %>%
+  select(Month, y) %>% 
+  mutate(Month=yearmonth(Month)) %>% 
+  as_tsibble(index = Month)
+```
+
+For the tasks that follow you will be modelling the **original data without any transformations** performed (even if you previously deemed it necessary). For questions 1 to 5 use the training data, i.e., ignore the last two years of your data.
+
+## Question 1
+*Plot your time series. By observing the plot and describing its components select an ETS model you think is appropriate for forecasting. Make sure you justify your choice (no more than 150 words). (8 marks)*
+
+It is clear that this data has strong seasonality and an upward trend with some slight cyclic behaviour.The ETS model that might be appropriate for forecasting is ETS(M,A,M).The seasonal amplitude increases with the level of time. Therefore, the seasonality should be multiplicative. Multiplicative seasonality is usually coupled with multiplicative errors. Therefore, the errors should be multiplicative. Finally, since there is an clearly an increase in level based on the plot, the trend should be additive.
+```{r}
+my_series |>
+  autoplot(y)  +
+  labs(
+    x = "Date",
+    y = "Millions $",
+    title = "Monthly turnover for clothing retailing",
+    subtitle = "Western Australia, Australia")
+my_series |> gg_season(y) + 
+  labs(
+    x = "Date",
+    y = "Millions $",
+    title = "Monthly turnover for clothing retailing",
+    subtitle = "Western Australia, Australia")
+my_series |> gg_subseries(y) + 
+  labs(
+    x = "Date",
+    y = "Millions $",
+    title = "Monthly turnover for clothing retailing",
+    subtitle = "Western Australia, Australia")
+  
+
+```
+
+
+\newpage
+## Question 2
+
+*Estimate the ETS model you described in Question 1 and show the estimated model output. Describe and comment on the estimated parameters and components. Include any plots you see necessary (no more than 150 words). (14 marks)*
+
+The smoothing parameters are alpha = 0.3431559 , beta = 0.0001050778 ,gamma = 0.08311028 and RMSE = 5.97. The level smoothing parameter is 0.3 so there is moderate weight to the recent observations. The trend smoothing parameter is near to zero so the trend linear (regression). The seasonal smoothing parameter is relatively low which means there isn't much change of the seasonal component.The variance of 0.0065 is not good for the model because it might lead to bias.The level seems to fit the data pretty well.
+```{r}
+fit <- my_series |>
+  model(model_question1 = ETS((y ~ error("M") + trend("A") + season("M")))) |>
+  report()
+fit |> accuracy()
+fit |> components(fit) |> autoplot()
+```
+
+\newpage
+## Question 3
+
+*Plot the residuals from the model and comment on these (no more than 50 words). Perform some diagnostic checks and comment on whether you are satisfied with the fit of the model. (Make sure you state all relevant information for any hypothesis test you perform such as the null hypothesis, the degrees of freedom, the decision, etc.). (10 marks)*
+
+The residuals are centered around 0. There are outliers in 2020 due to COVID-19. The residuals are normally distributed. There appears to be some heteroskedasticity in the residuals with larger variance of the first 6 lags.The shape of the lags seems sinusoidal, the model might miss the autocorrelation.
+The degrees of freedom:24
+Ljung-Box test:
+H0: Residuals are white noise
+H1: Residuals are not white noise
+The p-value is near 0. Therefore, the null hypothesis is rejected. There is sufficient evidence that the residuals are not white noise.
+```{r}
+fit |> gg_tsresiduals()
+augment(fit) |>
+  features(.innov, ljung_box, lag = 24)
+fit |> 
+  augment()
+```
+
+\newpage
+## Question 4
+
+*Let R select an ETS model. What model has been chosen and how has this model been chosen? (No more than 100 words). (6 marks)*
+
+R chose the ets(M,Ad,M) model. This model has been chosen by minimising the information criterion (AIC). R will choose among the 15 models the one that has the lowest AIC.Minimising the AIC assuming Gaussian residuals is asymptotically similar to minimising one-step time series cross validation MSE
+```{r}
+fitt <- my_series |>
+        model(ets = ETS(y))
+fitt|> report()
+fitt |> tidy()
+
+```
+
+\newpage
+## Question 5
+
+*Comment on how the model chosen by R is different to the model you have specified (no more than 50 words). Which of the two models would you choose and why? (no more than 50 words). (Hint: think about model selection here but also check your residuals).* 
+
+*If the models are identical specify a plausible alternative. Give a brief justification for your choice (no more than 100 words). (Hint: also check the residuals from this model).  (12 marks)*
+
+The 2 models are nearly identical because R already chose the model that has lowest AIC (4779.555) however my model also has a very similar AIC (4780.244). A plausible alternative is using the model ets(A,N,A) because it has a lower AIC(4976.314) than the ets(M,Ad,M). The seasonal component from ets(A,N,A) is increasing proportionally. Another alternative is using ARIMA models because there might be a cyclical component from the data which is not captured in the ETS models. However, both models have autocorrelations in the residuals because they both failed Ljung-box test.
+
+```{r}
+fitt <- my_series |>
+        model(ets = ETS(y))
+fitt |> gg_tsresiduals()
+augment(fitt) |>
+  features(.innov, ljung_box, lag = 24)
+fitt |> 
+  augment()
+fit <- my_series |>
+  model(model_question5 = ETS(y ~ error("A") + trend("N") + season("A"))) |>
+  report()
+fit |> gg_tsresiduals()
+augment(fit) |>
+  features(.innov, ljung_box, lag = 24)
+fit |> accuracy()
+fit |> components(fit) |> autoplot()
+```
+
+\newpage
+## Question 6
+
+*Generate forecasts for the last two years of your sample using both alternative ETS models (you will need to re-estimate both models over the appropriate training sample). Plot the forecasts and forecast intervals. Briefly comment on these. Which model does best? (No more than 100 words). (8 marks)*
+
+The MAM does the best because it has lower AIC and RMSE. Even though both models failed the Ljung-box test which means that there are still correlations that both of them failed to capture.
+```{r}
+myseriestrain <- my_series %>% 
+  slice(1:(n() - 24))
+myseriestest <- my_series %>% 
+  slice((n() - 23):n())
+fit_train <- myseriestrain %>% 
+  model(mam = ETS(y ~ error("M") + trend("A") + season("M")),
+        model_question5 = ETS((y ~ error("A")+ trend("N") + season("A"))))
+fit_train |>  glance()
+fit_train |> accuracy()
+fc_test <- fit_train |> 
+  forecast(h = "2 years")  
+
+fc_test |> autoplot(my_series)
+my_series |>
+  model(mam = ETS(y ~ error("M") + trend("A") + season("M"))) |>
+  forecast(h=24)|>
+  hilo()
+my_series |>
+  model(model_question5 = ETS(y ~ error("A")+ trend("N") + season("A")))|>
+  forecast(h=24)|>
+  hilo()
+
+
+      
+
+
+```
+
+
+\newpage
+## Question 7
+
+*Generate forecasts for the two years following the end of your sample using your chosen model. Plot them and briefly comment on these. (No more than 100 words).  (4 marks)*
+The forecast seems good overall. The points forecast seem reasonable with the increasing amplitude of seasonality component.There IS still autocorrelation left in the residuals which will affect the accuracy of the predictions intervals. The prediction interval might not be accurate.
+```{r}
+etsMAM <- my_series |>
+model(mam = ETS(y ~ error("M") + trend("A") + season("M")))
+etsMAM |>
+forecast(h=24) |>
+autoplot(my_series)  +
+  labs(
+    x = "Date",
+    y = "Millions $",
+    title = "Monthly turnover for clothing retailing",
+    subtitle = "Western Australia, Australia")
+
+```
+
