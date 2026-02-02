@@ -1,6 +1,6 @@
-# ETS Forecasting Project (R)
+# ETS Forecasting Project 
 
-Time series forecasting using ETS models with the fpp3 framework.
+Time series forecasting using ETS models.
 
 ## Files
 - Forecasting_Project.Rmd
